@@ -9,134 +9,92 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Loader2,
-  Search,
   Users,
-  Eye,
-  MoreHorizontal,
-  ChevronLeft,
-  ChevronRight,
+  Activity,
+  TrendingUp,
+  DollarSign,
+  Clock,
   Shield,
+  Trash2,
+  LogIn,
+  LogOut,
 } from "lucide-react";
-import { makeAuthenticatedRequest } from "@/lib/auth";
-import { formatDistanceToNow } from "date-fns";
-import { UserDetailModal } from "@/components/user-detail-modal";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { getStoredTokens } from "@/lib/utils";
-import { toast } from "sonner";
+  getStoredAdminInfo,
+  makeAuthenticatedRequest,
+  type AdminInfo,
+} from "@/lib/auth";
+import { formatDistanceToNow } from "@/lib/date-utils";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+} from "recharts";
 
-interface User {
+interface DashboardActivity {
   _id: string;
-  username: string;
-  email: string;
-  phone: string | null;
-  avatarUrl: string | null;
-  verify: "verified" | "unverified";
-  verificationType: "email" | "phone";
-  groups: any[];
-  friends: any[];
-  dateOfBirth: string | null;
+  action: "login" | "logout" | "delete" | "update";
+  adminId: string;
+  details: Record<string, any>;
   createdAt: string;
-  updatedAt: string;
-  lastLoginTime?: string;
-  google?: { googleId: string } | null;
-  facebook?: any | null;
-  twitter?: any | null;
-  privacySettings: {
-    profileVisibility: string;
-    friendRequests: string;
-  };
 }
 
-interface UsersResponse {
+interface DashboardData {
+  totalUsers: number;
+  activeUsers: number;
+  totalTransactions: number;
+  recentActivities: DashboardActivity[];
+}
+
+interface DashboardResponse {
   message: string;
   status: number;
-  data: {
-    items: User[];
-    pagination: {
-      page: number;
-      limit: number;
-      totalItems: number;
-      totalPages: number;
-      hasNextPage: boolean;
-      hasPrevPage: boolean;
-    };
-  };
+  data: DashboardData;
 }
 
-export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>([]);
+export default function DashboardPage() {
+  const [adminInfo, setAdminInfo] = useState<AdminInfo | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [pagination, setPagination] = useState({
-    totalItems: 0,
-    totalPages: 0,
-    hasNextPage: false,
-    hasPrevPage: false,
-  });
 
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-
-  const fetchUsers = async (page = 1, limit = 10, search = "") => {
+  const fetchDashboardData = async () => {
     setLoading(true);
     setError("");
 
     try {
-      const queryParams = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-        ...(search && { search }),
-      });
-
       const response = await makeAuthenticatedRequest(
-        `https://fairsplit-server.onrender.com/api/v1/admin/users?${queryParams}`
+        "https://fairsplit-server.onrender.com/api/v1/admin"
       );
 
       if (!response.ok) {
-        throw new Error("Failed to fetch users");
+        throw new Error("Failed to fetch dashboard data");
       }
 
-      const data: UsersResponse = await response.json();
+      const data: DashboardResponse = await response.json();
 
       if (data.status === 200) {
-        setUsers(data.data.items);
-        setPagination({
-          totalItems: data.data.pagination.totalItems,
-          totalPages: data.data.pagination.totalPages,
-          hasNextPage: data.data.pagination.hasNextPage,
-          hasPrevPage: data.data.pagination.hasPrevPage,
-        });
+        setDashboardData(data.data);
       } else {
-        setError(data.message || "Failed to fetch users");
+        setError(data.message || "Failed to fetch dashboard data");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -146,422 +104,353 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    fetchUsers(currentPage, pageSize, searchTerm);
-  }, [currentPage, pageSize]);
+    setAdminInfo(getStoredAdminInfo());
+    fetchDashboardData();
+  }, []);
 
-  const handleSearch = () => {
-    setCurrentPage(1);
-    fetchUsers(1, pageSize, searchTerm);
-  };
+  // Prepare chart data
+  const getActivityTypeData = () => {
+    if (!dashboardData) return [];
 
-  const handlePageChange = (newPage: number) => {
-    setCurrentPage(newPage);
-  };
-
-  const handlePageSizeChange = (newSize: string) => {
-    setPageSize(Number.parseInt(newSize));
-    setCurrentPage(1);
-  };
-
-  const getVerificationBadge = (verify: string) => {
-    return verify === "verified" ? (
-      <Badge variant="default" className="bg-green-100 text-green-800">
-        Verified
-      </Badge>
-    ) : (
-      <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-        Unverified
-      </Badge>
+    const activityCounts = dashboardData.recentActivities.reduce(
+      (acc, activity) => {
+        acc[activity.action] = (acc[activity.action] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
     );
+
+    return Object.entries(activityCounts).map(([action, count]) => ({
+      name: action.charAt(0).toUpperCase() + action.slice(1),
+      value: count,
+      action,
+    }));
   };
 
-  const getLoginProvider = (user: User) => {
-    if (user.google?.googleId) return "Google";
-    if (user.facebook) return "Facebook";
-    if (user.twitter) return "Twitter";
-    return "Email";
+  const getActivityTimelineData = () => {
+    if (!dashboardData) return [];
+
+    // Group activities by date
+    const activityByDate = dashboardData.recentActivities.reduce(
+      (acc, activity) => {
+        const date = new Date(activity.createdAt).toLocaleDateString();
+        acc[date] = (acc[date] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
+
+    return Object.entries(activityByDate)
+      .map(([date, count]) => ({
+        date,
+        activities: count,
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(-7); // Last 7 days
   };
 
-  const formatDate = (dateString: string) => {
-    return formatDistanceToNow(new Date(dateString), { addSuffix: true });
-  };
-
-  const handleViewUser = (userId: string) => {
-    setSelectedUserId(userId);
-    setIsDetailModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setSelectedUserId(null);
-    setIsDetailModalOpen(false);
-  };
-
-  const updateUserStatus = async (
-    userId: string,
-    verify: "verified" | "unverified"
-  ) => {
-    try {
-      const tokens = getStoredTokens();
-      if (!tokens) {
-        throw new Error("No authentication tokens found");
-      }
-
-      const response = await fetch(
-        `https://fairsplit-server.onrender.com/api/v1/admin/users/${userId}/status`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${tokens.accessToken}`,
-          },
-          body: JSON.stringify({
-            verify: verify,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to update user status");
-      }
-
-      const data = await response.json();
-
-      if (data.status === 200) {
-        // Refresh the users list
-        await fetchUsers(currentPage, pageSize, searchTerm);
-        toast("Success", {
-          description: `User status updated to ${verify}`,
-        });
-      } else {
-        throw new Error(data.message || "Failed to update user status");
-      }
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to update user status"
-      );
+  const getActionIcon = (action: string) => {
+    switch (action) {
+      case "login":
+        return <LogIn className="h-4 w-4 text-green-600" />;
+      case "logout":
+        return <LogOut className="h-4 w-4 text-blue-600" />;
+      case "delete":
+        return <Trash2 className="h-4 w-4 text-red-600" />;
+      case "update":
+        return <Shield className="h-4 w-4 text-yellow-600" />;
+      default:
+        return <Activity className="h-4 w-4 text-gray-600" />;
     }
   };
+
+  const getActionColor = (action: string) => {
+    switch (action) {
+      case "login":
+        return "text-green-600";
+      case "logout":
+        return "text-blue-600";
+      case "delete":
+        return "text-red-600";
+      case "update":
+        return "text-yellow-600";
+      default:
+        return "text-gray-600";
+    }
+  };
+
+  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Users Management
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground">
-            Manage and monitor user accounts
+            Welcome back, {adminInfo?.email}
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Badge variant="outline" className="text-sm">
-            Total: {pagination.totalItems} users
-          </Badge>
-        </div>
+        <Badge variant="secondary" className="text-sm">
+          {adminInfo?.role}
+        </Badge>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{pagination.totalItems}</div>
+            <div className="text-2xl font-bold">
+              {dashboardData?.totalUsers || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">Registered users</p>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {dashboardData?.activeUsers || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">Currently online</p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Verified Users
+              Total Transactions
             </CardTitle>
-            <Eye className="h-4 w-4 text-muted-foreground" />
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {users.filter((user) => user.verify === "verified").length}
+              {dashboardData?.totalTransactions || 0}
             </div>
+            <p className="text-xs text-muted-foreground">
+              All time transactions
+            </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Google Users</CardTitle>
-            <div className="h-4 w-4 text-muted-foreground">G</div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {users.filter((user) => user.google?.googleId).length}
-            </div>
-          </CardContent>
-        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Recent Signups
+              Recent Activities
             </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {
-                users.filter((user) => {
-                  const createdAt = new Date(user.createdAt);
-                  const weekAgo = new Date();
-                  weekAgo.setDate(weekAgo.getDate() - 7);
-                  return createdAt > weekAgo;
-                }).length
-              }
+              {dashboardData?.recentActivities.length || 0}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Admin actions logged
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Search and Filters */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        {/* Activity Timeline Chart */}
+        <Card className="col-span-4">
+          <CardHeader>
+            <CardTitle>Activity Timeline</CardTitle>
+            <CardDescription>
+              Admin activities over the last 7 days
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={{
+                activities: {
+                  label: "Activities",
+                  color: "hsl(var(--chart-1))",
+                },
+              }}
+              className="h-[300px]"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={getActivityTimelineData()}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Line
+                    type="monotone"
+                    dataKey="activities"
+                    stroke="var(--color-activities)"
+                    strokeWidth={2}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        {/* Activity Types Chart */}
+        <Card className="col-span-3">
+          <CardHeader>
+            <CardTitle>Activity Types</CardTitle>
+            <CardDescription>Distribution of admin actions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={{
+                login: {
+                  label: "Login",
+                  color: "hsl(var(--chart-1))",
+                },
+                logout: {
+                  label: "Logout",
+                  color: "hsl(var(--chart-2))",
+                },
+                delete: {
+                  label: "Delete",
+                  color: "hsl(var(--chart-3))",
+                },
+                update: {
+                  label: "Update",
+                  color: "hsl(var(--chart-4))",
+                },
+              }}
+              className="h-[300px]"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={getActivityTypeData()}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) =>
+                      `${name} ${(percent * 100).toFixed(0)}%`
+                    }
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {getActivityTypeData().map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Activities */}
       <Card>
         <CardHeader>
-          <CardTitle>Search & Filter</CardTitle>
+          <CardTitle>Recent Activities</CardTitle>
           <CardDescription>
-            Find specific users by email, username, or other criteria
+            Latest admin actions and system events
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center space-x-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by email, username..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                  onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-                />
+          <div className="space-y-4">
+            {dashboardData?.recentActivities.slice(0, 10).map((activity) => (
+              <div
+                key={activity._id}
+                className="flex items-center space-x-4 p-3 border rounded-lg"
+              >
+                <div className="flex-shrink-0">
+                  {getActionIcon(activity.action)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center space-x-2">
+                    <span
+                      className={`font-medium ${getActionColor(
+                        activity.action
+                      )}`}
+                    >
+                      {activity.action.charAt(0).toUpperCase() +
+                        activity.action.slice(1)}
+                    </span>
+                    <Badge variant="outline" className="text-xs">
+                      {activity.adminId.slice(-8)}
+                    </Badge>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {activity.action === "login" &&
+                      `Login via ${activity.details.method}`}
+                    {activity.action === "logout" &&
+                      `Logout via ${activity.details.method}`}
+                    {activity.action === "delete" &&
+                      `Deleted user ${activity.details.userId?.slice(-8)}`}
+                    {activity.action === "update" &&
+                      `Updated user verification to ${activity.details.verify}`}
+                  </div>
+                </div>
+                <div className="flex-shrink-0 text-sm text-muted-foreground">
+                  <Clock className="h-3 w-3 inline mr-1" />
+                  {formatDistanceToNow(new Date(activity.createdAt), {
+                    addSuffix: true,
+                  })}
+                </div>
               </div>
-            </div>
-            <Button onClick={handleSearch} disabled={loading}>
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Search"
-              )}
-            </Button>
-            <Select
-              value={pageSize.toString()}
-              onValueChange={handlePageSizeChange}
-            >
-              <SelectTrigger className="w-[100px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="5">5</SelectItem>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="20">20</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-              </SelectContent>
-            </Select>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Users Table */}
+      {/* Activity Summary Bar Chart */}
       <Card>
         <CardHeader>
-          <CardTitle>Users List</CardTitle>
-          <CardDescription>
-            Page {currentPage} of {pagination.totalPages} (
-            {pagination.totalItems} total users)
-          </CardDescription>
+          <CardTitle>Activity Summary</CardTitle>
+          <CardDescription>Count of different admin actions</CardDescription>
         </CardHeader>
         <CardContent>
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Provider</TableHead>
-                    <TableHead>Groups</TableHead>
-                    <TableHead>Last Login</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user._id}>
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={user.avatarUrl || undefined} />
-                            <AvatarFallback>
-                              {user.username.charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{user.username}</div>
-                            <div className="text-sm text-muted-foreground">
-                              ID: {user._id.slice(-8)}
-                            </div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{user.email}</div>
-                          {user.phone && (
-                            <div className="text-sm text-muted-foreground">
-                              {user.phone}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          {getVerificationBadge(user.verify)}
-                          <div className="text-xs text-muted-foreground">
-                            via {user.verificationType}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {getLoginProvider(user)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{user.groups.length}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          {user.lastLoginTime
-                            ? formatDate(user.lastLoginTime)
-                            : "Never"}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          {formatDate(user.createdAt)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewUser(user._id)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                              <DropdownMenuItem
-                                onClick={() => handleViewUser(user._id)}
-                              >
-                                <Eye className="w-4 h-4 mr-2" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  updateUserStatus(user._id, "verified")
-                                }
-                                disabled={user.verify === "verified"}
-                              >
-                                <Shield className="w-4 h-4 mr-2 text-green-600" />
-                                Mark as Verified
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  updateUserStatus(user._id, "unverified")
-                                }
-                                disabled={user.verify === "unverified"}
-                              >
-                                <Shield className="w-4 h-4 mr-2 text-yellow-600" />
-                                Mark as Unverified
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-
-              {/* Pagination */}
-              <div className="flex items-center justify-between mt-4">
-                <div className="text-sm text-muted-foreground">
-                  Showing {(currentPage - 1) * pageSize + 1} to{" "}
-                  {Math.min(currentPage * pageSize, pagination.totalItems)} of{" "}
-                  {pagination.totalItems} users
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={!pagination.hasPrevPage}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    Previous
-                  </Button>
-                  <div className="flex items-center space-x-1">
-                    {Array.from(
-                      { length: Math.min(5, pagination.totalPages) },
-                      (_, i) => {
-                        const pageNum = i + 1;
-                        return (
-                          <Button
-                            key={pageNum}
-                            variant={
-                              currentPage === pageNum ? "default" : "outline"
-                            }
-                            size="sm"
-                            onClick={() => handlePageChange(pageNum)}
-                          >
-                            {pageNum}
-                          </Button>
-                        );
-                      }
-                    )}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={!pagination.hasNextPage}
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
+          <ChartContainer
+            config={{
+              count: {
+                label: "Count",
+                color: "hsl(var(--chart-1))",
+              },
+            }}
+            className="h-[200px]"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={getActivityTypeData()}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="value" fill="var(--color-count)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
         </CardContent>
       </Card>
-      <UserDetailModal
-        userId={selectedUserId}
-        isOpen={isDetailModalOpen}
-        onClose={handleCloseModal}
-      />
     </div>
   );
 }
