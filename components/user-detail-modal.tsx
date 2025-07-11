@@ -107,14 +107,10 @@ export function UserDetailModal({
       const response = await fetch(
         `https://fairsplit-server.onrender.com/api/v1/admin/users/${id}`,
         {
-          method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${tokens.accessToken}`,
           },
-          body: JSON.stringify({
-            refreshToken: tokens.refreshToken,
-          }),
         }
       );
 
@@ -418,7 +414,7 @@ export function UserDetailModal({
                   <div className="flex items-center justify-between">
                     <span className="font-medium">Blocked Users:</span>
                     <Badge variant="destructive">
-                      {user.blockedUsers.length}
+                      {user.blockedUsers?.length || 0}
                     </Badge>
                   </div>
                 </CardContent>

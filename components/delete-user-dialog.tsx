@@ -95,10 +95,8 @@ export function DeleteUserDialog({
               <p className="text-sm">Email: {email}</p>
               <p className="text-sm">ID: {userId}</p>
             </div>
-            <p className="text-destructive font-medium">
-              ⚠️ This will permanently delete all user data, including groups,
-              friends, and activity history.
-            </p>
+            ⚠️ This will permanently delete all user data, including groups,
+            friends, and activity history.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
