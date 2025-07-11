@@ -56,9 +56,11 @@ interface DashboardActivity {
 }
 
 interface DashboardData {
-  totalUsers: number;
-  activeUsers: number;
-  totalTransactions: number;
+  userCount: number;
+  groupCount: number;
+  billCount: number;
+  shoppingListCount: number;
+  transactionCount: number;
   recentActivities: DashboardActivity[];
 }
 
@@ -81,20 +83,34 @@ export default function DashboardPage() {
     setError("");
 
     try {
-      const response = await makeAuthenticatedRequest(
+      // Fetch project usage statistics
+      const usageResponse = await makeAuthenticatedRequest(
+        "https://fairsplit-server.onrender.com/api/v1/admin/project/usage"
+      );
+
+      if (!usageResponse.ok) {
+        throw new Error("Failed to fetch project usage");
+      }
+
+      const usageData = await usageResponse.json();
+
+      // Fetch admin activities (keep existing endpoint)
+      const activitiesResponse = await makeAuthenticatedRequest(
         "https://fairsplit-server.onrender.com/api/v1/admin"
       );
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch dashboard data");
+      let activitiesData = { data: { recentActivities: [] } };
+      if (activitiesResponse.ok) {
+        activitiesData = await activitiesResponse.json();
       }
 
-      const data: DashboardResponse = await response.json();
-
-      if (data.status === 200) {
-        setDashboardData(data.data);
+      if (usageData.status === 200) {
+        setDashboardData({
+          ...usageData.data,
+          recentActivities: activitiesData.data?.recentActivities || [],
+        });
       } else {
-        setError(data.message || "Failed to fetch dashboard data");
+        setError(usageData.message || "Failed to fetch dashboard data");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -212,7 +228,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -220,7 +236,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {dashboardData?.totalUsers || 0}
+              {dashboardData?.userCount || 0}
             </div>
             <p className="text-xs text-muted-foreground">Registered users</p>
           </CardContent>
@@ -228,48 +244,54 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Groups</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {dashboardData?.activeUsers || 0}
+              {dashboardData?.groupCount || 0}
             </div>
-            <p className="text-xs text-muted-foreground">Currently online</p>
+            <p className="text-xs text-muted-foreground">Active groups</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Transactions
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total Bills</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {dashboardData?.totalTransactions || 0}
+              {dashboardData?.billCount || 0}
             </div>
-            <p className="text-xs text-muted-foreground">
-              All time transactions
-            </p>
+            <p className="text-xs text-muted-foreground">Bills created</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Recent Activities
+              Shopping Lists
             </CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {dashboardData?.recentActivities.length || 0}
+              {dashboardData?.shoppingListCount || 0}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Admin actions logged
-            </p>
+            <p className="text-xs text-muted-foreground">Shopping lists</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Transactions</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {dashboardData?.transactionCount || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">Total transactions</p>
           </CardContent>
         </Card>
       </div>
