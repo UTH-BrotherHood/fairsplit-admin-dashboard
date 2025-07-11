@@ -5,6 +5,7 @@ import type React from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AuthGuard } from "@/components/auth-guard";
+import { ModeToggle } from "@/components/theme-toggle";
 
 export default function DashboardLayout({
   children,
@@ -23,6 +24,7 @@ export default function DashboardLayout({
                 <span className="text-sm text-muted-foreground">
                   Admin Dashboard
                 </span>
+                <ModeToggle />
               </div>
             </div>
           </div>
