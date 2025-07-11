@@ -79,7 +79,7 @@ interface UsersResponse {
   message: string;
   status: number;
   data: {
-    items: User[];
+    users: User[];
     pagination: {
       page: number;
       limit: number;
@@ -137,7 +137,7 @@ export default function UsersPage() {
       const data: UsersResponse = await response.json();
 
       if (data.status === 200) {
-        setUsers(data.data.items);
+        setUsers(data.data.users);
         setPagination({
           totalItems: data.data.pagination.totalItems,
           totalPages: data.data.pagination.totalPages,

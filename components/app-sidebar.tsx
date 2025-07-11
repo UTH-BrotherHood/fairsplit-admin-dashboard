@@ -29,6 +29,7 @@ import {
   LogOut,
   User,
   ChevronUp,
+  FolderOpen,
 } from "lucide-react";
 import { AdminInfo, clearAuthData, getStoredAdminInfo } from "@/lib/auth";
 
@@ -42,6 +43,16 @@ const menuItems = [
     title: "Users",
     url: "/dashboard/users",
     icon: Users,
+  },
+  {
+    title: "Groups",
+    url: "/dashboard/groups",
+    icon: Users,
+  },
+  {
+    title: "Categories",
+    url: "/dashboard/categories",
+    icon: FolderOpen,
   },
 ];
 
@@ -109,14 +120,6 @@ export function AppSidebar() {
                 side="top"
                 className="w-[--radix-popper-anchor-width]"
               >
-                <DropdownMenuItem>
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Sign out</span>
